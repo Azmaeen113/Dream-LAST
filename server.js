@@ -2,8 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(process.cwd(), 'db.json');
 
 // Function to read from the database file
@@ -31,15 +33,18 @@ function writeDatabase(data) {
 app.use(cors());
 app.use(express.json());
 
+// Serve static frontend files from the dist directory
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // GET savings (used by homepage)
-app.get('/savings', (req, res) => {
+app.get('/api/savings', (req, res) => {
   const db = readDatabase();
   console.log('Returning current savings:', db.savings);
   res.json({ savings: db.savings });
 });
 
 // POST savings (used by admin to update)
-app.post('/savings', (req, res) => {
+app.post('/api/savings', (req, res) => {
   const { newSavings } = req.body;
   const savingsAmount = Number(newSavings);
 
@@ -70,10 +75,15 @@ app.post('/savings', (req, res) => {
   }
 });
 
+// Fallback route for SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
 // Start server
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   const db = readDatabase();
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
   console.log(`Current savings: ${db.savings}`);
 });
