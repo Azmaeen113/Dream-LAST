@@ -16,7 +16,7 @@ The easiest way to fix the issue is to run the provided script:
    ```
    node scripts/fix-group-savings.js
    ```
-4. The script will apply the necessary SQL changes to fix the issue
+4. The script will apply the necessary ... SQL changes to fix the issue
 5. Try updating group savings again
 
 ## Option 2: Run the SQL Manually in Supabase
