@@ -45,23 +45,71 @@ export type Database = {
           },
         ]
       }
-      group_savings: {
+      groups: {
         Row: {
           id: string
-          last_updated: string | null
-          total_amount: number | null
+          name: string
+          created_at: string | null
         }
         Insert: {
           id?: string
-          last_updated?: string | null
-          total_amount?: number | null
+          name: string
+          created_at?: string | null
         }
         Update: {
           id?: string
-          last_updated?: string | null
-          total_amount?: number | null
+          name?: string
+          created_at?: string | null
         }
         Relationships: []
+      }
+      group_savings: {
+        Row: {
+          id: string
+          group_id: string
+          amount: number
+          goal_amount: number
+          note: string | null
+          last_updated_at: string | null
+          updated_by: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          amount?: number
+          goal_amount?: number
+          note?: string | null
+          last_updated_at?: string | null
+          updated_by?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          amount?: number
+          goal_amount?: number
+          note?: string | null
+          last_updated_at?: string | null
+          updated_by?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_savings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_savings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       messages: {
         Row: {
@@ -107,6 +155,10 @@ export type Database = {
           status: string
           transaction_id: string
           user_id: string
+          recorded_by: string | null
+          notes: string | null
+          created_at: string | null
+          updated_at: string | null
         }
         Insert: {
           amount: number
@@ -119,6 +171,10 @@ export type Database = {
           status: string
           transaction_id: string
           user_id: string
+          recorded_by?: string | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Update: {
           amount?: number
@@ -131,6 +187,10 @@ export type Database = {
           status?: string
           transaction_id?: string
           user_id?: string
+          recorded_by?: string | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -140,6 +200,58 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      payment_history: {
+        Row: {
+          id: string
+          group_id: string
+          user_id: string
+          type: string
+          amount: number
+          note: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          user_id: string
+          type: string
+          amount: number
+          note?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          user_id?: string
+          type?: string
+          amount?: number
+          note?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_history_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
         ]
       }
       profiles: {
@@ -149,6 +261,8 @@ export type Database = {
           email: string
           id: string
           is_admin: boolean | null
+          group_id: string | null
+          role: string | null
           mobile_number: string
           name: string
           photo_url: string | null
@@ -160,6 +274,8 @@ export type Database = {
           email: string
           id: string
           is_admin?: boolean | null
+          group_id?: string | null
+          role?: string | null
           mobile_number: string
           name: string
           photo_url?: string | null
@@ -171,12 +287,22 @@ export type Database = {
           email?: string
           id?: string
           is_admin?: boolean | null
+          group_id?: string | null
+          role?: string | null
           mobile_number?: string
           name?: string
           photo_url?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       projects: {
         Row: {

@@ -46,8 +46,12 @@
     @apply border-border;
   }
 
-  body {
+  html, body {
     @apply bg-dreamland-background text-foreground antialiased;
+    height: 100%;
+    overflow-x: hidden;
+    position: relative;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Custom scrollbar for WebKit browsers */
@@ -74,8 +78,73 @@
   .card-hover {
     @apply transition-all duration-300 hover:shadow-md hover:shadow-dreamland-accent/20 hover:-translate-y-1;
   }
-  
+
   .section-card {
-    @apply bg-dreamland-surface rounded-lg p-4 shadow-lg transition-all duration-300;
+    @apply bg-dreamland-surface rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+  }
+
+  /* Dashboard grid responsive styles */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
+
+  .dashboard-grid > div {
+    min-height: 150px;
+  }
+
+  @media (max-width: 640px) {
+    .dashboard-grid {
+      gap: 0.5rem;
+    }
+
+    .dashboard-grid > div {
+      min-height: 130px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .dashboard-grid > div {
+      min-height: 120px;
+    }
+  }
+
+  /* Modern stylish section card colors */
+  /* Profile Section - Rich aubergine */
+  .section-card-purple {
+    @apply rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+    background: linear-gradient(135deg, #3A1E52 0%, #2A1540 100%);
+  }
+
+  /* Members Section - Navy midnight */
+  .section-card-blue {
+    @apply rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+    background: linear-gradient(135deg, #172A45 0%, #0E1C30 100%);
+  }
+
+  /* Savings Section - Deep charcoal with teal accents */
+  .section-card-teal {
+    @apply rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+    background: linear-gradient(135deg, #1A1E23 0%, #15191E 100%);
+    border-left: 3px solid #00B8D4;
+  }
+
+  /* Upcoming Projects Section - Deep indigo */
+  .section-card-pink {
+    @apply rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+    background: linear-gradient(135deg, #1E1A3C 0%, #161430 100%);
+  }
+
+  /* Ongoing Projects Section - Electric indigo */
+  .section-card-amber {
+    @apply rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+    background: linear-gradient(135deg, #5D12D2 0%, #4A0FB0 100%);
+  }
+
+  /* Payment Section - Deep magenta */
+  .section-card-emerald {
+    @apply rounded-lg p-4 shadow-lg transition-all duration-300 h-full flex flex-col;
+    background: linear-gradient(135deg, #960057 0%, #7A0047 100%);
   }
 }

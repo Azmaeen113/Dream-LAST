@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +14,7 @@ const SignUpForm = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -43,7 +42,7 @@ const SignUpForm = () => {
         ...formData,
         profilePhoto: file,
       });
-      
+
       // Create preview URL
       const reader = new FileReader();
       reader.onload = () => {
@@ -55,7 +54,7 @@ const SignUpForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast({
         variant: "destructive",
@@ -64,58 +63,77 @@ const SignUpForm = () => {
       });
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
-      // Register with Supabase Auth
+      // Register with Supabase Auth - include all profile data in the metadata
+      // This approach relies on a database trigger to create the profile
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
+            full_name: formData.name,
             name: formData.name,
             address: formData.address,
-            mobile_number: formData.mobile
-          }
+            mobile_number: formData.mobile,
+            email: formData.email,
+            is_admin: false
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
         }
       });
-      
+
       if (authError) throw authError;
-      
+
+      if (!authData.user) {
+        throw new Error("User creation failed");
+      }
+
       // If we have a profile photo, upload it
       if (formData.profilePhoto && authData.user) {
-        const fileExt = formData.profilePhoto.name.split('.').pop();
-        const fileName = `${authData.user.id}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('profile_photos')
-          .upload(fileName, formData.profilePhoto);
-        
-        if (uploadError) throw uploadError;
-        
-        // Get the public URL for the uploaded photo
-        const { data: urlData } = supabase.storage
-          .from('profile_photos')
-          .getPublicUrl(fileName);
-        
-        // Update the profile with the photo URL
-        if (urlData) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({ photo_url: urlData.publicUrl })
-            .eq('id', authData.user.id);
-            
-          if (profileError) throw profileError;
+        try {
+          const fileExt = formData.profilePhoto.name.split('.').pop();
+          const fileName = `${authData.user.id}/${authData.user.id}.jpg`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('profile_photos')
+            .upload(fileName, formData.profilePhoto);
+
+          if (uploadError) throw uploadError;
+
+          // Get the public URL for the uploaded photo
+          const { data: urlData } = supabase.storage
+            .from('profile_photos')
+            .getPublicUrl(fileName);
+
+          // We'll update the user metadata with the photo URL
+          // This will be picked up by the trigger when the user confirms their email
+          if (urlData) {
+            const { error: updateError } = await supabase.auth.updateUser({
+              data: {
+                photo_url: urlData.publicUrl
+              }
+            });
+
+            if (updateError) {
+              console.error("Failed to update user with photo URL:", updateError);
+              // Continue anyway
+            }
+          }
+        } catch (uploadError) {
+          console.error("Profile photo upload failed:", uploadError);
+          // Continue with signup even if photo upload fails
         }
       }
-      
+
       toast({
         title: "Account created",
-        description: "You have successfully created your account",
+        description: "You have successfully created your account. Please check your email to confirm your account.",
       });
-      
-      navigate("/dashboard");
+
+      navigate("/sign-in");
     } catch (error: any) {
       console.error("Signup error:", error);
       toast({
@@ -146,7 +164,7 @@ const SignUpForm = () => {
                   {formData.name ? formData.name[0].toUpperCase() : "U"}
                 </AvatarFallback>
               </Avatar>
-              <label 
+              <label
                 htmlFor="profilePhoto"
                 className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-dreamland-secondary text-dreamland-surface cursor-pointer"
               >
@@ -154,9 +172,9 @@ const SignUpForm = () => {
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                   <circle cx="12" cy="13" r="4"></circle>
                 </svg>
-                <Input 
-                  id="profilePhoto" 
-                  name="profilePhoto" 
+                <Input
+                  id="profilePhoto"
+                  name="profilePhoto"
                   type="file"
                   accept="image/*"
                   className="hidden"
@@ -165,7 +183,7 @@ const SignUpForm = () => {
               </label>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
@@ -179,7 +197,7 @@ const SignUpForm = () => {
                 className="bg-dreamland-background"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="mobile">Mobile Number</Label>
               <Input
@@ -193,7 +211,7 @@ const SignUpForm = () => {
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -207,7 +225,7 @@ const SignUpForm = () => {
               className="bg-dreamland-background"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
             <Textarea
@@ -220,7 +238,7 @@ const SignUpForm = () => {
               className="bg-dreamland-background min-h-[80px]"
             />
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -234,7 +252,7 @@ const SignUpForm = () => {
                 className="bg-dreamland-background"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
@@ -248,9 +266,9 @@ const SignUpForm = () => {
               />
             </div>
           </div>
-          
-          <Button 
-            type="submit" 
+
+          <Button
+            type="submit"
             className="w-full bg-dreamland-primary hover:bg-dreamland-primary/90"
             disabled={isLoading}
           >

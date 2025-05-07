@@ -1,29 +1,14 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import MemberAccount from "@/components/dashboard/MemberAccount";
 import MembersGrid from "@/components/dashboard/MembersGrid";
 import GroupSavings from "@/components/dashboard/GroupSavings";
 import ProjectsList from "@/components/dashboard/ProjectsList";
 import MonthlyPayment from "@/components/dashboard/MonthlyPayment";
-
-// Mock data
-const currentUser = {
-  name: "Rafiqul Islam",
-  photoUrl: "https://i.pravatar.cc/150?img=32",
-  isPaid: false,
-};
-
-const members = [
-  { id: "1", name: "Rafiqul Islam", photoUrl: "https://i.pravatar.cc/150?img=32", isPaid: false },
-  { id: "2", name: "Abdul Karim", photoUrl: "https://i.pravatar.cc/150?img=12", isPaid: true },
-  { id: "3", name: "Nasreen Ahmed", photoUrl: "https://i.pravatar.cc/150?img=23", isPaid: true },
-  { id: "4", name: "Farhan Khan", photoUrl: "https://i.pravatar.cc/150?img=67", isPaid: false },
-  { id: "5", name: "Layla Rahman", photoUrl: "https://i.pravatar.cc/150?img=45", isPaid: true },
-  { id: "6", name: "Mominul Haque", photoUrl: "https://i.pravatar.cc/150?img=54", isPaid: false },
-  { id: "7", name: "Tasnim Akter", photoUrl: "https://i.pravatar.cc/150?img=18", isPaid: true },
-  { id: "8", name: "Zahir Uddin", photoUrl: "https://i.pravatar.cc/150?img=71", isPaid: true },
-];
+import { getCurrentUser, getUserProfile } from "@/lib/auth";
+import { getAllMembers, type Member } from "@/lib/members";
+import { useToast } from "@/components/ui/use-toast";
 
 const projects = [
   {
@@ -67,33 +52,134 @@ const projects = [
 ];
 
 const Dashboard = () => {
+  const [currentUser, setCurrentUser] = useState({
+    name: "",
+    photoUrl: "",
+    isPaid: false,
+  });
+  const [members, setMembers] = useState<Member[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMembersLoading, setIsMembersLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Fetch user profile on component mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        setIsLoading(true);
+        const user = await getCurrentUser();
+
+        if (!user) {
+          // Redirect to login if no user is found
+          window.location.href = "/sign-in";
+          return;
+        }
+
+        const { data: profile, error } = await getUserProfile(user.id);
+
+        if (error) {
+          throw error;
+        }
+
+        if (profile) {
+          setCurrentUser({
+            name: profile.name || "",
+            photoUrl: profile.photo_url || "",
+            isPaid: false, // This would come from a separate query in a real app
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load profile information",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [toast]);
+
+  // Fetch members for the MembersGrid
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        setIsMembersLoading(true);
+        const membersData = await getAllMembers();
+        setMembers(membersData);
+      } catch (error) {
+        console.error("Error fetching members:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load members information",
+        });
+      } finally {
+        setIsMembersLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, [toast]);
+
   return (
     <DashboardLayout>
-      <div className="p-4">
-        <h1 className="text-2xl font-bold mb-6">DreamLand Group</h1>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Member Account Section */}
-          <MemberAccount user={currentUser} />
-          
-          {/* Members Grid Section */}
-          <MembersGrid members={members} />
-          
-          {/* Group Savings Section */}
-          <GroupSavings totalSavings={1250000} goal={2000000} growthRate={12} />
-          
-          {/* Upcoming Projects Section */}
-          <ProjectsList projects={projects} type="upcoming" />
-          
-          {/* Ongoing Projects Section */}
-          <ProjectsList projects={projects} type="ongoing" />
-          
-          {/* Monthly Payment Section */}
-          <MonthlyPayment 
-            amount={5000} 
-            dueDate="2024-05-07" 
-            isPaid={false} 
+      <div className="p-2 sm:p-4 flex flex-col">
+        <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center">
+          <img
+            src="/images/logo.png"
+            alt="DreamLand Logo"
+            className="w-24 h-24 sm:w-30 sm:h-30 mr-3 object-contain"
           />
+          DreamLand Group
+        </h1>
+
+        {/* Grid container with better responsive sizing */}
+        <div className="dashboard-grid grid grid-cols-2 gap-3 sm:gap-4 md:gap-5">
+          {/* Row 1, Column 1: Group Savings Section */}
+          <div className="col-span-1 mb-3 sm:mb-4">
+            <GroupSavings growthRate={12} />
+          </div>
+
+          {/* Row 1, Column 2: Member Account Section */}
+          <div className="col-span-1 mb-3 sm:mb-4">
+            {isLoading ? (
+              <div className="flex justify-center items-center h-32 sm:h-40">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dreamland-primary"></div>
+              </div>
+            ) : (
+              <MemberAccount user={currentUser} />
+            )}
+          </div>
+
+          {/* Row 2, Column 1: Members Grid Section */}
+          <div className="col-span-1 mb-3 sm:mb-4">
+            {isMembersLoading ? (
+              <div className="flex justify-center items-center h-32 sm:h-40">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dreamland-primary"></div>
+              </div>
+            ) : (
+              <MembersGrid members={members} />
+            )}
+          </div>
+
+          {/* Row 2, Column 2: Upcoming Projects Section */}
+          <div className="col-span-1 mb-3 sm:mb-4">
+            <ProjectsList projects={projects} type="upcoming" />
+          </div>
+
+          {/* Row 3, Column 1: Ongoing Projects Section */}
+          <div className="col-span-1 mb-3 sm:mb-4">
+            <ProjectsList projects={projects} type="ongoing" />
+          </div>
+
+          {/* Row 3, Column 2: Monthly Payment Section */}
+          <div className="col-span-1 mb-3 sm:mb-4">
+            <MonthlyPayment />
+          </div>
         </div>
       </div>
     </DashboardLayout>

@@ -1,6 +1,6 @@
-
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,37 +9,69 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
+import { isCurrentUserAdmin } from "@/lib/admin";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
-// Mock projects data (using the same data from Projects.tsx)
-const projects = [
-  {
-    id: "1",
-    title: "Agricultural Investment",
-    description: "Investment in rice farming in Rangpur district with expected 15% returns. The project involves partnering with local farmers to provide capital for seeds, fertilizers, and modern farming equipment.",
-    status: "ongoing" as const,
-    progress: 65,
-    budget: 500000,
-    raised: 325000,
-    startDate: "2023-12-15",
-    endDate: "2024-06-30",
-    participants: 12,
-    leader: "Abdul Karim",
-    leaderPhoto: "https://i.pravatar.cc/150?img=12",
-    location: "Rangpur District, Bangladesh",
-    updates: [
-      { date: "2024-04-02", content: "Completed irrigation system setup" },
-      { date: "2024-03-10", content: "Purchased seeds and fertilizers" },
-      { date: "2024-01-20", content: "Land preparation completed" },
-    ],
-    members: [
-      { id: "2", name: "Abdul Karim", photoUrl: "https://i.pravatar.cc/150?img=12" },
-      { id: "3", name: "Nasreen Ahmed", photoUrl: "https://i.pravatar.cc/150?img=23" },
-      { id: "5", name: "Layla Rahman", photoUrl: "https://i.pravatar.cc/150?img=45" },
-      // Additional members would be listed here
-    ]
-  },
-  {
-    id: "2",
+interface Project {
+  id: string;
+  title: string;
+  description: string;
+  status: "upcoming" | "ongoing" | "completed";
+  progress?: number;
+  budget: number;
+  raised?: number;
+  start_date: string;
+  end_date: string;
+  location?: string;
+  photo_url?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProjectUpdate {
+  id: string;
+  project_id: string;
+  content: string;
+  created_at: string;
+}
+
+interface ProjectMember {
+  id: string;
+  name: string;
+  photo_url?: string;
+}
+
+// Mock updates and members until we implement these features
+const mockUpdates = [
+  { date: "2024-04-02", content: "Completed irrigation system setup" },
+  { date: "2024-03-10", content: "Purchased seeds and fertilizers" },
+  { date: "2024-01-20", content: "Land preparation completed" },
+];
+
+// Mock members for future implementation
+const mockMembers = [
+  { id: "2", name: "Abdul Karim", photoUrl: "https://i.pravatar.cc/150?img=12" },
+  { id: "3", name: "Nasreen Ahmed", photoUrl: "https://i.pravatar.cc/150?img=23" },
+  { id: "5", name: "Layla Rahman", photoUrl: "https://i.pravatar.cc/150?img=45" },
+];
+
+// This was part of the old mock data structure that's no longer needed
+// Keeping the comment as a reference for future implementation
+/*
+{
+  id: "2",
     title: "Community Center Construction",
     description: "Building a community center for group gatherings and events. The center will have meeting spaces, a kitchen, and multimedia facilities for educational programs.",
     status: "upcoming" as const,
@@ -88,38 +120,117 @@ const projects = [
       // Additional members would be listed here
     ]
   },
-  {
-    id: "4",
-    title: "Livestock Investment",
-    description: "Group investment in cattle farming for the upcoming Eid. The project aims to purchase calves, raise them for 6-8 months, and sell them before Eid ul-Adha for profit.",
-    status: "upcoming" as const,
-    budget: 800000,
-    raised: 350000,
-    startDate: "2024-08-01",
-    endDate: "2025-03-15",
-    participants: 14,
-    leader: "Mominul Haque",
-    leaderPhoto: "https://i.pravatar.cc/150?img=54",
-    location: "Khulna District, Bangladesh",
-    updates: [
-      { date: "2024-04-05", content: "Identified land for cattle rearing" },
-      { date: "2024-03-10", content: "Made contacts with suppliers" },
-    ],
-    members: [
-      { id: "6", name: "Mominul Haque", photoUrl: "https://i.pravatar.cc/150?img=54" },
-      { id: "2", name: "Abdul Karim", photoUrl: "https://i.pravatar.cc/150?img=12" },
-      { id: "8", name: "Zahir Uddin", photoUrl: "https://i.pravatar.cc/150?img=71" },
-      // Additional members would be listed here
-    ]
-  },
-];
+*/
 
 const ProjectDetail = () => {
   const { id } = useParams<{id: string}>();
   const navigate = useNavigate();
-  
-  const project = projects.find((p) => p.id === id);
-  
+  const { toast } = useToast();
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [projectCreator, setProjectCreator] = useState<{ name: string, photo_url?: string } | null>(null);
+
+  useEffect(() => {
+    if (id) {
+      fetchProjectDetails(id);
+      checkAdminStatus();
+    }
+  }, [id]);
+
+  const checkAdminStatus = async () => {
+    try {
+      const adminStatus = await isCurrentUserAdmin();
+      setIsAdmin(adminStatus);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  };
+
+  const fetchProjectDetails = async (projectId: string) => {
+    try {
+      setIsLoading(true);
+
+      // Fetch project details
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (projectError) throw projectError;
+
+      if (projectData) {
+        setProject(projectData);
+
+        // Fetch project creator details
+        if (projectData.created_by) {
+          const { data: creatorData, error: creatorError } = await supabase
+            .from('profiles')
+            .select('name, photo_url')
+            .eq('id', projectData.created_by)
+            .single();
+
+          if (!creatorError && creatorData) {
+            setProjectCreator(creatorData);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load project details",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!id) return;
+
+    try {
+      setIsLoading(true);
+
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Project Deleted",
+        description: "The project has been successfully deleted.",
+      });
+
+      navigate('/projects');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete project. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="p-4 flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dreamland-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (!project) {
     return (
       <DashboardLayout>
@@ -137,18 +248,38 @@ const ProjectDetail = () => {
   return (
     <DashboardLayout>
       <div className="p-4">
-        <div className="mb-4 flex items-center">
-          <Button 
-            variant="outline" 
-            className="border-dreamland-accent/20 mr-2"
-            onClick={() => navigate('/projects')}
-          >
-            ← Back
-          </Button>
-          <h1 className="text-2xl font-bold">Project Details</h1>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              className="border-dreamland-accent/20 mr-2"
+              onClick={() => navigate('/projects')}
+            >
+              ← Back
+            </Button>
+            <h1 className="text-2xl font-bold">Project Details</h1>
+          </div>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              className="border-dreamland-secondary text-dreamland-secondary"
+              onClick={() => navigate(`/edit-project/${project.id}`)}
+            >
+              Edit Project
+            </Button>
+          )}
         </div>
-        
+
         <Card className="bg-dreamland-surface border-dreamland-accent/20 mb-4">
+          {project.photo_url && (
+            <div className="w-full h-64 overflow-hidden">
+              <img
+                src={project.photo_url}
+                alt={project.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
           <CardHeader className="flex flex-col gap-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl">{project.title}</CardTitle>
@@ -165,68 +296,74 @@ const ProjectDetail = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-gray-300">{project.description}</p>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm text-gray-400 mb-1">Start Date</h4>
-                <p className="font-medium">{new Date(project.startDate).toLocaleDateString()}</p>
+                <p className="font-medium">{new Date(project.start_date).toLocaleDateString()}</p>
               </div>
-              
+
               <div>
                 <h4 className="text-sm text-gray-400 mb-1">End Date</h4>
-                <p className="font-medium">{new Date(project.endDate).toLocaleDateString()}</p>
+                <p className="font-medium">{new Date(project.end_date).toLocaleDateString()}</p>
               </div>
-              
+
               <div>
                 <h4 className="text-sm text-gray-400 mb-1">Budget</h4>
                 <p className="font-medium text-dreamland-secondary">৳{project.budget.toLocaleString()}</p>
               </div>
-              
+
+              {project.raised && (
+                <div>
+                  <h4 className="text-sm text-gray-400 mb-1">Raised</h4>
+                  <p className="font-medium text-dreamland-accent">৳{project.raised.toLocaleString()}</p>
+                </div>
+              )}
+            </div>
+
+            {project.location && (
               <div>
-                <h4 className="text-sm text-gray-400 mb-1">Raised</h4>
-                <p className="font-medium text-dreamland-accent">৳{project.raised.toLocaleString()}</p>
+                <h4 className="text-sm text-gray-400 mb-1">Location</h4>
+                <p className="font-medium">{project.location}</p>
               </div>
-            </div>
-            
-            <div>
-              <h4 className="text-sm text-gray-400 mb-1">Location</h4>
-              <p className="font-medium">{project.location}</p>
-            </div>
-            
+            )}
+
             {project.status !== "upcoming" && project.progress !== undefined && (
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <h4 className="text-gray-400">Project Progress</h4>
                   <span className="font-medium">{project.progress}%</span>
                 </div>
-                <Progress 
-                  value={project.progress} 
-                  className="h-2 bg-gray-700" 
+                <Progress
+                  value={project.progress}
+                  className="h-2 bg-gray-700"
                 />
               </div>
             )}
-            
-            <div>
-              <h4 className="text-sm text-gray-400 mb-2">Project Leader</h4>
-              <div className="flex items-center space-x-3">
-                <Avatar>
-                  <AvatarImage src={project.leaderPhoto} />
-                  <AvatarFallback className="bg-dreamland-primary/20">
-                    {project.leader[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="font-medium">{project.leader}</span>
+
+            {projectCreator && (
+              <div>
+                <h4 className="text-sm text-gray-400 mb-2">Project Creator</h4>
+                <div className="flex items-center space-x-3">
+                  <Avatar>
+                    <AvatarImage src={projectCreator.photo_url} />
+                    <AvatarFallback className="bg-dreamland-primary/20">
+                      {projectCreator.name[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">{projectCreator.name}</span>
+                </div>
               </div>
-            </div>
-            
+            )}
+
             <Separator className="bg-dreamland-accent/10" />
-            
+
             <div>
               <h4 className="text-md font-medium mb-3">Project Updates</h4>
               <div className="space-y-3">
-                {project.updates.map((update, index) => (
-                  <div 
-                    key={index} 
+                {mockUpdates.map((update, index) => (
+                  <div
+                    key={index}
                     className="border-l-2 border-dreamland-accent pl-4 py-1"
                   >
                     <p className="text-sm">{update.content}</p>
@@ -237,40 +374,64 @@ const ProjectDetail = () => {
                 ))}
               </div>
             </div>
-            
+
             <Separator className="bg-dreamland-accent/10" />
-            
+
             <div>
               <h4 className="text-md font-medium mb-3">Team Members</h4>
               <div className="flex flex-wrap gap-2">
-                {project.members.map((member) => (
-                  <div 
-                    key={member.id} 
-                    className="flex flex-col items-center cursor-pointer"
-                    onClick={() => navigate(`/members/${member.id}`)}
-                  >
-                    <Avatar className="w-12 h-12">
-                      <AvatarImage src={member.photoUrl} />
-                      <AvatarFallback className="bg-dreamland-primary/20">
-                        {member.name[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs mt-1">{member.name.split(" ")[0]}</span>
-                  </div>
-                ))}
+                {/* We'll implement this feature later */}
+                <div className="text-sm text-gray-400">
+                  No team members yet
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
-        
-        {project.status === "upcoming" && (
-          <div className="flex justify-center">
-            <Button 
-              className="bg-dreamland-primary hover:bg-dreamland-primary/90 w-full max-w-xs"
+
+        <div className="flex justify-center space-x-4">
+          {project.status === "upcoming" && (
+            <Button
+              className="bg-dreamland-primary hover:bg-dreamland-primary/90"
               onClick={() => navigate(`/projects/${id}/join`)}
             >
               Join This Project
             </Button>
+          )}
+
+          <Button
+            variant="outline"
+            className="border-dreamland-accent/20"
+            onClick={() => navigate('/projects')}
+          >
+            View All Projects
+          </Button>
+        </div>
+
+        {isAdmin && (
+          <div className="flex justify-center space-x-4">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isLoading}>
+                  Delete Project
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the project
+                    and remove all associated data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteProject}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
       </div>

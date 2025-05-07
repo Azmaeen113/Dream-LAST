@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { sendPasswordResetOTP } from "@/lib/emailService";
 
 const ForgotPasswordForm = () => {
   const navigate = useNavigate();
@@ -20,17 +21,30 @@ const ForgotPasswordForm = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/reset-password',
-      });
+      console.log(`Sending OTP to ${email}...`);
 
-      if (error) throw error;
+      try {
+        // Send OTP to the user's email
+        const emailSent = await sendPasswordResetOTP(email);
 
-      setSubmitted(true);
-      toast({
-        title: "Reset link sent",
-        description: "Check your email for the password reset link",
-      });
+        if (!emailSent) {
+          throw new Error("Failed to send OTP. Please check your email address and try again.");
+        }
+
+        console.log(`OTP sent successfully to ${email}`);
+
+        setSubmitted(true);
+        toast({
+          title: "OTP sent",
+          description: "Check your email for the password reset OTP",
+        });
+
+        // Don't navigate automatically, let the user click the button
+        // This gives them a chance to see the OTP in the console in development mode
+      } catch (otpError: any) {
+        console.error("OTP error:", otpError);
+        throw otpError;
+      }
     } catch (error: any) {
       console.error("Password reset error:", error);
       toast({
@@ -49,7 +63,7 @@ const ForgotPasswordForm = () => {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Check Your Email</CardTitle>
           <CardDescription className="text-center">
-            We've sent a password reset link to {email}
+            We've sent a password reset OTP to {email}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center">
@@ -60,17 +74,24 @@ const ForgotPasswordForm = () => {
             </svg>
           </div>
           <p className="text-center text-sm mb-6">
-            Didn't receive an email? Check your spam folder or try again with a different email.
+            Didn't receive an OTP? Check your spam folder or try again with a different email.
           </p>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/verify-otp?email=${encodeURIComponent(email)}`)}
+            className="w-full mb-2"
+          >
+            Enter OTP
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setSubmitted(false)}
             className="w-full mb-2"
           >
             Try again
           </Button>
-          <Button 
-            variant="link" 
+          <Button
+            variant="link"
             onClick={() => navigate("/sign-in")}
             className="text-dreamland-secondary"
           >
@@ -86,7 +107,7 @@ const ForgotPasswordForm = () => {
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold text-center">Forgot Password</CardTitle>
         <CardDescription className="text-center">
-          Enter your email address and we'll send you a link to reset your password
+          Enter your email address and we'll send you an OTP to reset your password
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -104,12 +125,12 @@ const ForgotPasswordForm = () => {
               className="bg-dreamland-background"
             />
           </div>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full bg-dreamland-primary hover:bg-dreamland-primary/90"
             disabled={isLoading}
           >
-            {isLoading ? "Sending..." : "Send Reset Link"}
+            {isLoading ? "Sending..." : "Send OTP"}
           </Button>
         </form>
       </CardContent>

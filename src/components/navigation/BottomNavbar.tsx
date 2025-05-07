@@ -1,12 +1,51 @@
 
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { isCurrentUserAdmin } from "@/lib/admin";
+import { signOut } from "@/lib/auth";
+import { useToast } from "@/components/ui/use-toast";
 
 const BottomNavbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const navItems = [
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      const adminStatus = await isCurrentUserAdmin();
+      setIsAdmin(adminStatus);
+    };
+
+    checkAdminStatus();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      const { error } = await signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      // Redirect to sign-in page
+      window.location.href = "/sign-in";
+    } catch (error: any) {
+      console.error("Error signing out:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to sign out",
+      });
+      setIsLoggingOut(false);
+    }
+  };
+
+  // Base navigation items for all users
+  const baseNavItems = [
     {
       name: "Home",
       path: "/dashboard",
@@ -62,6 +101,38 @@ const BottomNavbar = () => {
     },
   ];
 
+  // Admin-specific navigation items
+  const adminNavItems = [
+    {
+      name: "Admin",
+      path: "/admin",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2v6.5"></path>
+          <path d="M8.2 4.2c-1.4 1.4-2.2 3.3-2.2 5.3 0 4.1 3.4 7.5 7.5 7.5s7.5-3.4 7.5-7.5c0-2-.8-3.9-2.2-5.3"></path>
+          <path d="M17 18h.5a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2H7"></path>
+        </svg>
+      ),
+    },
+  ];
+
+  // Create log out item
+  const logoutItem = {
+    name: "Log Out",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+        <polyline points="16 17 21 12 16 7"></polyline>
+        <line x1="21" y1="12" x2="9" y2="12"></line>
+      </svg>
+    ),
+  };
+
+  // Combine navigation items based on admin status
+  const navItems = isAdmin
+    ? [...baseNavItems.slice(0, 3), adminNavItems[0], baseNavItems[4]]
+    : [...baseNavItems.slice(0, 4), baseNavItems[4]];
+
   return (
     <div className="fixed bottom-0 left-0 right-0 h-16 bg-dreamland-surface border-t border-dreamland-accent/20 flex justify-around items-center px-2 z-50">
       {navItems.map((item) => {
@@ -82,6 +153,16 @@ const BottomNavbar = () => {
           </Link>
         );
       })}
+
+      {/* Log Out Button */}
+      <button
+        onClick={handleLogout}
+        disabled={isLoggingOut}
+        className="flex flex-col items-center justify-center w-full h-full transition-colors text-gray-400 hover:text-red-500"
+      >
+        <div className="mb-1">{logoutItem.icon}</div>
+        <span className="text-xs font-medium">{isLoggingOut ? "..." : logoutItem.name}</span>
+      </button>
     </div>
   );
 };

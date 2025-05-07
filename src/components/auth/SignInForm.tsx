@@ -50,7 +50,7 @@ const SignInForm = () => {
         title: "Success",
         description: "You have successfully logged in",
       });
-      
+
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Login error:", error);
@@ -93,7 +93,7 @@ const SignInForm = () => {
               <Button
                 variant="link"
                 className="p-0 h-auto text-xs text-dreamland-secondary"
-                onClick={() => navigate("/forgot-password")}
+                onClick={() => navigate(`/forgot-password?email=${encodeURIComponent(formData.email)}`)}
                 type="button"
               >
                 Forgot password?
@@ -117,8 +117,8 @@ const SignInForm = () => {
             />
             <Label htmlFor="remember" className="text-sm">Remember me</Label>
           </div>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full bg-dreamland-primary hover:bg-dreamland-primary/90"
             disabled={isLoading}
           >
